@@ -1,23 +1,15 @@
 //
-//  PFMoveApplication.m, version 1.6.2
+//  PFMoveApplication.m, version 1.7.2
 //  LetsMove
 //
 //  Created by Andy Kim at Potion Factory LLC on 9/17/09
 //
 //  The contents of this file are dedicated to the public domain.
-//
-//  Contributors:
-//	  Andy Kim
-//    John Brayton
-//    Chad Sellers
-//    Kevin LaCoste
-//    Rasmus Andersson / Spotify
-//    Timothy J. Wood
-//
 
 #import "PFMoveApplication.h"
 #import "NSString+SymlinksAndAliases.h"
 #import <Security/Security.h>
+#import <dlfcn.h>
 
 // Strings
 // These are macros to be able to use custom i18n tools
@@ -53,13 +45,14 @@ static NSString *AlertSuppressKey = @"moveToApplicationsFolderAlertSuppress";
 static NSString *PreferredInstallLocation(BOOL *isUserDirectory);
 static BOOL IsInApplicationsFolder(NSString *path);
 static BOOL IsInDownloadsFolder(NSString *path);
+static BOOL IsLaunchedFromDMG();
 static BOOL Trash(NSString *path);
 static BOOL AuthorizedInstall(NSString *srcPath, NSString *dstPath, BOOL *canceled);
 static BOOL CopyBundle(NSString *srcPath, NSString *dstPath);
-
+static void Relaunch();
 
 // Main worker function
-void PFMoveToApplicationsFolderIfNecessary() {
+void PFMoveToApplicationsFolderIfNecessary(void) {
 	// Skip if user suppressed the alert before
 	if ([[NSUserDefaults standardUserDefaults] boolForKey:AlertSuppressKey]) return;
 
@@ -71,16 +64,8 @@ void PFMoveToApplicationsFolderIfNecessary() {
 
 	// File Manager
 	NSFileManager *fm = [NSFileManager defaultManager];
-	BOOL bundlePathIsWritable = [fm isWritableFileAtPath:bundlePath];
 
-	// Guess if we have launched from a disk image
-	BOOL isLaunchedFromDMG = ([bundlePath hasPrefix:@"/Volumes/"] && !bundlePathIsWritable);
-
-	// Fail silently if there's no access to delete the original application
-	if (!isLaunchedFromDMG && !bundlePathIsWritable) {
-		NSLog(@"INFO -- No access to delete the app. Not offering to move it.");
-		return;
-	}
+	BOOL isLaunchedFromDMG = IsLaunchedFromDMG();
 
 	// Since we are good to go, get the preferred installation directory.
 	BOOL installToUserApplications = NO;
@@ -175,7 +160,7 @@ void PFMoveToApplicationsFolderIfNecessary() {
 				else {
 					for (NSRunningApplication *runningApplication in [[NSWorkspace sharedWorkspace] runningApplications]) {
 						NSString *executablePath = [[runningApplication executableURL] path];
-						if ([[executablePath substringToIndex:[destinationPath length]] isEqualToString:destinationPath]) {
+						if ([executablePath hasPrefix:destinationPath]) {
 							destinationIsRunning = YES;
 							break;
 						}
@@ -209,38 +194,7 @@ void PFMoveToApplicationsFolderIfNecessary() {
 		}
 
 		// Relaunch.
-		// The shell script waits until the original app process terminates.
-		// This is done so that the relaunched app opens as the front-most app.
-		int pid = [[NSProcessInfo processInfo] processIdentifier];
-
-		// Command run just before running open /final/path
-		NSString *preOpenCmd = @"";
-
-		// OS X >=10.5:
-		// Before we launch the new app, clear xattr:com.apple.quarantine to avoid
-		// duplicate "scary file from the internet" dialog.
-#if MAC_OS_X_VERSION_MAX_ALLOWED > MAC_OS_X_VERSION_10_4
-		if (floor(NSAppKitVersionNumber) > NSAppKitVersionNumber10_5) {
-			// Add the -r flag on 10.6
-			preOpenCmd = [NSString stringWithFormat:@"/usr/bin/xattr -d -r com.apple.quarantine '%@';", destinationPath];
-		}
-		else if (floor(NSAppKitVersionNumber) > NSAppKitVersionNumber10_4) {
-			preOpenCmd = [NSString stringWithFormat:@"/usr/bin/xattr -d com.apple.quarantine '%@';", destinationPath];
-		}
-#endif
-
-		NSString *script = [NSString stringWithFormat:@"(while [ `ps -p %d | wc -l` -gt 1 ]; do sleep 0.1; done; %@ open '%@') &", pid, preOpenCmd, destinationPath];
-
-		[NSTask launchedTaskWithLaunchPath:@"/bin/sh" arguments:[NSArray arrayWithObjects:@"-c", script, nil]];
-
-		// Launched from within a DMG? -- unmount (if no files are open after 5 seconds,
-		// otherwise leave it mounted).
-		if (isLaunchedFromDMG) {
-			script = [NSString stringWithFormat:@"(sleep 5 && hdiutil detach '%@') &", [bundlePath stringByDeletingLastPathComponent]];
-			[NSTask launchedTaskWithLaunchPath:@"/bin/sh" arguments:[NSArray arrayWithObjects:@"-c", script, nil]];
-		}
-
-		exit(0);
+		Relaunch(destinationPath);
 	}
 	else {
 		if (floor(NSAppKitVersionNumber) > NSAppKitVersionNumber10_4) {
@@ -285,12 +239,20 @@ static NSString *PreferredInstallLocation(BOOL *isUserDirectory) {
 		BOOL isDirectory;
 
 		if ([fm fileExistsAtPath:userApplicationsDir isDirectory:&isDirectory] && isDirectory) {
-			if (isUserDirectory) *isUserDirectory = YES;
-			return [userApplicationsDir stringByResolvingSymlinksAndAliases];
+			// User Applications directory exists. Get the directory contents.
+			NSArray *contents = [fm contentsOfDirectoryAtPath:userApplicationsDir error:NULL];
+
+			// Check if there is at least one ".app" inside the directory.
+			for (NSString *contentsPath in contents) {
+				if ([[contentsPath pathExtension] isEqualToString:@"app"]) {
+					if (isUserDirectory) *isUserDirectory = YES;
+					return [userApplicationsDir stringByResolvingSymlinksAndAliases];
+				}
+			}
 		}
 	}
 
-	// No user Applications directory. Return the machine local Applications directory
+	// No user Applications directory in use. Return the machine local Applications directory
 	if (isUserDirectory) *isUserDirectory = NO;
 	return [[NSSearchPathForDirectoriesInDomains(NSApplicationDirectory, NSLocalDomainMask, YES) lastObject] stringByResolvingSymlinksAndAliases];
 }
@@ -328,6 +290,15 @@ static BOOL IsInDownloadsFolder(NSString *path) {
 #endif
 	// 10.4
 	return [[[path stringByDeletingLastPathComponent] lastPathComponent] isEqualToString:@"Downloads"];
+}
+
+static BOOL IsLaunchedFromDMG() {
+	// Guess if we have launched from a disk image
+	NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
+	NSFileManager *fm = [NSFileManager defaultManager];
+	BOOL bundlePathIsWritable = [fm isWritableFileAtPath:bundlePath];
+
+	return [bundlePath hasPrefix:@"/Volumes/"] && !bundlePathIsWritable;
 }
 
 static BOOL Trash(NSString *path) {
@@ -373,10 +344,25 @@ static BOOL AuthorizedInstall(NSString *srcPath, NSString *dstPath, BOOL *cancel
 		goto fail;
 	}
 
+	static OSStatus (*security_AuthorizationExecuteWithPrivileges)(AuthorizationRef authorization, const char *pathToTool,
+																   AuthorizationFlags options, char * const *arguments,
+																   FILE **communicationsPipe) = NULL;
+	if (!security_AuthorizationExecuteWithPrivileges) {
+		// On 10.7, AuthorizationExecuteWithPrivileges is deprecated. We want to still use it since there's no
+		// good alternative (without requiring code signing). We'll look up the function through dyld and fail
+		// if it is no longer accessible. If Apple removes the function entirely this will fail gracefully. If
+		// they keep the function and throw some sort of exception, this won't fail gracefully, but that's a
+		// risk we'll have to take for now.
+		security_AuthorizationExecuteWithPrivileges = dlsym(RTLD_DEFAULT, "AuthorizationExecuteWithPrivileges");
+	}
+	if (!security_AuthorizationExecuteWithPrivileges) {
+		goto fail;
+	}
+
 	// Delete the destination
 	{
 		char *args[] = {"-rf", (char *)[dstPath fileSystemRepresentation], NULL};
-		err = AuthorizationExecuteWithPrivileges(myAuthorizationRef, "/bin/rm", kAuthorizationFlagDefaults, args, NULL);
+		err = security_AuthorizationExecuteWithPrivileges(myAuthorizationRef, "/bin/rm", kAuthorizationFlagDefaults, args, NULL);
 		if (err != errAuthorizationSuccess) goto fail;
 
 		// Wait until it's done
@@ -387,7 +373,7 @@ static BOOL AuthorizedInstall(NSString *srcPath, NSString *dstPath, BOOL *cancel
 	// Copy
 	{
 		char *args[] = {"-pR", (char *)[srcPath fileSystemRepresentation], (char *)[dstPath fileSystemRepresentation], NULL};
-		err = AuthorizationExecuteWithPrivileges(myAuthorizationRef, "/bin/cp", kAuthorizationFlagDefaults, args, NULL);
+		err = security_AuthorizationExecuteWithPrivileges(myAuthorizationRef, "/bin/cp", kAuthorizationFlagDefaults, args, NULL);
 		if (err != errAuthorizationSuccess) goto fail;
 
 		// Wait until it's done
@@ -427,4 +413,39 @@ static BOOL CopyBundle(NSString *srcPath, NSString *dstPath) {
 	}
 #endif
 	return NO;
+}
+
+static void Relaunch(NSString *destinationPath) {
+	// The shell script waits until the original app process terminates.
+	// This is done so that the relaunched app opens as the front-most app.
+	int pid = [[NSProcessInfo processInfo] processIdentifier];
+
+	// Command run just before running open /final/path
+	NSString *preOpenCmd = @"";
+
+	// OS X >=10.5:
+	// Before we launch the new app, clear xattr:com.apple.quarantine to avoid
+	// duplicate "scary file from the internet" dialog.
+#if MAC_OS_X_VERSION_MAX_ALLOWED > MAC_OS_X_VERSION_10_4
+	if (floor(NSAppKitVersionNumber) > NSAppKitVersionNumber10_5) {
+		// Add the -r flag on 10.6
+		preOpenCmd = [NSString stringWithFormat:@"/usr/bin/xattr -d -r com.apple.quarantine '%@';", destinationPath];
+	}
+	else if (floor(NSAppKitVersionNumber) > NSAppKitVersionNumber10_4) {
+		preOpenCmd = [NSString stringWithFormat:@"/usr/bin/xattr -d com.apple.quarantine '%@';", destinationPath];
+	}
+#endif
+
+	NSString *script = [NSString stringWithFormat:@"(while [ `ps -p %d | wc -l` -gt 1 ]; do sleep 0.1; done; %@ open '%@') &", pid, preOpenCmd, destinationPath];
+
+	[NSTask launchedTaskWithLaunchPath:@"/bin/sh" arguments:[NSArray arrayWithObjects:@"-c", script, nil]];
+
+	// Launched from within a DMG? -- unmount (if no files are open after 5 seconds,
+	// otherwise leave it mounted).
+	if (IsLaunchedFromDMG()) {
+		script = [NSString stringWithFormat:@"(sleep 5 && hdiutil detach '%@') &", [[[NSBundle mainBundle] bundlePath] stringByDeletingLastPathComponent]];
+		[NSTask launchedTaskWithLaunchPath:@"/bin/sh" arguments:[NSArray arrayWithObjects:@"-c", script, nil]];
+	}
+
+	exit(0);
 }

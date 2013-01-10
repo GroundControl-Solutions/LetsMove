@@ -7,6 +7,19 @@ A sample project that demonstrates how to move a running Mac OS X application to
 Version History
 ---------------
 
+* 1.7.2
+	- Fixed an exception that could happen.
+
+* 1.7.1
+	- Refactoring
+
+* 1.7
+	- Only move to ~/Appilcations directory if an app is already in there.
+
+* 1.6.3
+	- Function calls deprecated in 10.7 no longer cause compile time warnings.
+	- Added Simplified Chinese and European Portuguese localizations
+
 * 1.6.2
 	- Garbage collection compatibility added
 	- Use a new method to check if an application is already running on Mac OS X 10.6 systems or higher
@@ -60,7 +73,9 @@ Code Contributors:
 * Kevin LaCoste
 * Rasmus Andersson
 * Timothy J. Wood
-* Matt Gallagher (NSString+SymlinksAndAliases)
+* Matt Gallagher
+* Whitney Young
+* Nick Moore
 
 Translators:
 ------------
@@ -72,3 +87,6 @@ Translators:
 * Fredrik Nannestad (Danish)
 * Georg Alexander Bøe (Norwegian)
 * Marco Improda (Italian)
+* Venj Chu (Simplified Chinese)
+* Sérgio Miranda (European Portuguese)
+* Victor Figueiredo (Brazilian Portuguese)
