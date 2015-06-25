@@ -4,8 +4,76 @@ LetsMove
 A sample project that demonstrates how to move a running Mac OS X application to the Applications folder.
 
 
+Requirements
+------------
+Builds and runs on Mac OS X 10.5 or higher. Does NOT support sandboxed applications.
+
+
+Usage
+-----
+
+Copy the following files into your project:
+
+- PFMoveApplication.h
+- PFMoveApplication.m
+
+In your app delegate's "-[applicationWillFinishLaunching:]" method, call the PFMoveToApplicationsFolderIfNecessary function at the very top.
+
+If your project has ARC enabled, you'll want to disable ARC on the above files. You can do so by adding -fno-objc-arc compiler flag to your PFMoveApplication.m source file. See http://stackoverflow.com/questions/6646052/how-can-i-disable-arc-for-a-single-file-in-a-project/6658549#6658549
+
+If your application is localized, also copy the 'MoveApplication.string' files into your project.
+
+
+License
+-------
+Public domain
+
+
+
 Version History
 ---------------
+
+* 1.18
+	- Catalan localization added
+
+* 1.17
+	- Tranditional Chinese localization added.
+
+* 1.16
+	- Deprecation warning that appears when minimum deployment target is set to OS X 10.10 taken care of
+
+* 1.15
+	- Swedish localization added
+
+* 1.14
+	- Hugarian, Serbian, and Turkish localizations added
+	- Macedonian localization added
+
+* 1.13
+	- Polish localization added
+
+* 1.12
+	- Use country code based .lproj directories
+	- Make it compile for projects that don't use precompiled headers to import AppKit.framework
+	- Minor adjustment to Dutch localization
+	- Warning fixes in example project
+
+* 1.11
+	- Objective-C++ compatibility
+
+* 1.10
+	- Fixed deprecation warnings that show up when building against the OS X 10.9 SDK.
+
+* 1.9
+	- Removed OS X 10.4 support
+	- Properly detect if the running app is in a disk image
+	- Fixed a bug where if the app's name contained a quote, the app could not be moved
+	- After a successful move, delete the application instead of moving it to the Trash.
+	- Other fixes and improvements
+
+* 1.8
+	- If the app is already there in the Applications folder but not writable, request authentication from user
+	- Added Korean localization
 
 * 1.7.2
 	- Fixed an exception that could happen.
@@ -60,11 +128,6 @@ Version History
 	- First release
 
 
-Requirements
-------------
-Builds and runs on Mac OS X 10.4 or higher.
-
-
 Code Contributors:
 -------------
 * Andy Kim
@@ -76,6 +139,8 @@ Code Contributors:
 * Matt Gallagher
 * Whitney Young
 * Nick Moore
+* Nicholas Riley
+
 
 Translators:
 ------------
@@ -90,3 +155,11 @@ Translators:
 * Venj Chu (Simplified Chinese)
 * Sérgio Miranda (European Portuguese)
 * Victor Figueiredo (Brazilian Portuguese)
+* AppLingua (Korean)
+* Czech X Team (Czech)
+* Marek Telecki (Polish)
+* Petar Vlahu (Macedonian)
+* Václav Slavík (Hungarian, Serbian, and Turkish)
+* Erik Vikström (Swedish)
+* Inndy Lin (Traditional Chinese)
+* aONe (Catalan)
