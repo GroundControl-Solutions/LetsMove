@@ -55,7 +55,7 @@ static NSString *ShellQuotedString(NSString *string);
 static void Relaunch(NSString *destinationPath);
 
 // Main worker function
-void PFMoveToApplicationsFolderIfNecessary(void) {
+void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 	// Skip if user suppressed the alert before
 	if ([[NSUserDefaults standardUserDefaults] boolForKey:AlertSuppressKey]) return;
 
@@ -175,6 +175,10 @@ void PFMoveToApplicationsFolderIfNecessary(void) {
 		}
 
 		// Relaunch.
+        if (willRelaunch != nil)
+        {
+            willRelaunch();
+        }
 		Relaunch(destinationPath);
 
 		// Launched from within a disk image? -- unmount (if no files are open after 5 seconds,

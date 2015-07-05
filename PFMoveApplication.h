@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-void PFMoveToApplicationsFolderIfNecessary(void);
+void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void));
 
 #ifdef __cplusplus
 }
