@@ -3,6 +3,8 @@ LetsMove
 
 A sample project that demonstrates how to move a running Mac OS X application to the Applications folder.
 
+![Screenshot](http://i.imgur.com/euTRZiI.png)
+
 
 Requirements
 ------------
@@ -23,6 +25,7 @@ If your project has ARC enabled, you'll want to disable ARC on the above files. 
 
 If your application is localized, also copy the 'MoveApplication.string' files into your project.
 
+Link your application against Security.framework.
 
 License
 -------
@@ -32,6 +35,14 @@ Public domain
 
 Version History
 ---------------
+
+* 1.20
+	- Support for applications bundled inside another application
+	- Brazilian Portuguese localization slightly updated
+	- Build warnings fixed
+
+* 1.19
+	- Slovak localization added
 
 * 1.18
 	- Catalan localization added
@@ -154,7 +165,7 @@ Translators:
 * Marco Improda (Italian)
 * Venj Chu (Simplified Chinese)
 * Sérgio Miranda (European Portuguese)
-* Victor Figueiredo (Brazilian Portuguese)
+* Victor Figueiredo and BR Lingo (Brazilian Portuguese)
 * AppLingua (Korean)
 * Czech X Team (Czech)
 * Marek Telecki (Polish)
@@ -163,3 +174,5 @@ Translators:
 * Erik Vikström (Swedish)
 * Inndy Lin (Traditional Chinese)
 * aONe (Catalan)
+* Marek Hrusovsky (Slovak)
+
