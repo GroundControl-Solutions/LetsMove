@@ -42,7 +42,7 @@ static NSString *AlertSuppressKey = @"moveToApplicationsFolderAlertSuppress";
 
 
 // Helper functions
-static NSString *PreferredInstallLocation(BOOL *isUserDirectory);
+static NSString *PreferredInstallLocation(bool& useUserDirectory);
 static BOOL IsInApplicationsFolder(NSString *path);
 static BOOL IsInDownloadsFolder(NSString *path);
 static BOOL IsApplicationAtPathRunning(NSString *path);
@@ -77,19 +77,30 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 	NSString *diskImageDevice = ContainingDiskImageDevice(bundlePath);
 
 	// Since we are good to go, get the preferred installation directory.
-	BOOL installToUserApplications = NO;
-	NSString *applicationsDirectory = PreferredInstallLocation(&installToUserApplications);
-	NSString *bundleName = [bundlePath lastPathComponent];
-	NSString *destinationPath = [applicationsDirectory stringByAppendingPathComponent:bundleName];
+	bool installToUserApplications;
+	NSString* destinationPath, *applicationsDirectory, *bundleName;
+	bool needAuthorization;
+	auto getPath = [&](bool use_user_applications) {
+		installToUserApplications = use_user_applications;
+		applicationsDirectory = PreferredInstallLocation(installToUserApplications);
+		bundleName = [bundlePath lastPathComponent];
+		destinationPath = [applicationsDirectory stringByAppendingPathComponent:bundleName];
 
-	// Check if we need admin password to write to the Applications directory
-	BOOL needAuthorization = ([fm isWritableFileAtPath:applicationsDirectory] == NO);
+		// Check if we need admin password to write to the Applications directory
+		needAuthorization = ![fm isWritableFileAtPath:applicationsDirectory];
 
-	// Check if the destination bundle is already there but not writable
-	needAuthorization |= ([fm fileExistsAtPath:destinationPath] && ![fm isWritableFileAtPath:destinationPath]);
+		// Check if the destination bundle is already there but not writable
+		needAuthorization |= ([fm fileExistsAtPath:destinationPath] && ![fm isWritableFileAtPath:destinationPath]);
+	};
+
+	getPath(false);
+
+	if(needAuthorization)
+		getPath(true);
+
 
 	// Setup the alert
-	NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+	NSAlert *alert = [[NSAlert alloc] init];
 	{
 		NSString *informativeText = nil;
 
@@ -156,7 +167,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 				if (IsApplicationAtPathRunning(destinationPath)) {
 					// Give the running app focus and terminate myself
 					NSLog(@"INFO -- Switching to an already running version");
-					[[NSTask launchedTaskWithLaunchPath:@"/usr/bin/open" arguments:[NSArray arrayWithObject:destinationPath]] waitUntilExit];
+					[[NSTask launchedTaskWithLaunchPath:@"/usr/bin/open" arguments:@[destinationPath]] waitUntilExit];
 					exit(0);
 				}
 				else {
@@ -190,7 +201,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 		// otherwise leave it mounted).
 		if (diskImageDevice && !isNestedApplication) {
 			NSString *script = [NSString stringWithFormat:@"(/bin/sleep 5 && /usr/bin/hdiutil detach %@) &", ShellQuotedString(diskImageDevice)];
-			[NSTask launchedTaskWithLaunchPath:@"/bin/sh" arguments:[NSArray arrayWithObjects:@"-c", script, nil]];
+			[NSTask launchedTaskWithLaunchPath:@"/bin/sh" arguments:@[@"-c", script]];
 		}
 
 		exit(0);
@@ -205,7 +216,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 fail:
 	{
 		// Show failure message
-		alert = [[[NSAlert alloc] init] autorelease];
+		alert = [[NSAlert alloc] init];
 		[alert setMessageText:kStrMoveApplicationCouldNotMove];
 		[alert runModal];
 	}
@@ -214,7 +225,7 @@ fail:
 #pragma mark -
 #pragma mark Helper Functions
 
-static NSString *PreferredInstallLocation(BOOL *isUserDirectory) {
+static NSString *PreferredInstallLocation(bool& useUserDirectory) {
 	// Return the preferred install location.
 	// Assume that if the user has a ~/Applications folder, they'd prefer their
 	// applications to go there.
@@ -223,18 +234,18 @@ static NSString *PreferredInstallLocation(BOOL *isUserDirectory) {
 
 	NSArray *userApplicationsDirs = NSSearchPathForDirectoriesInDomains(NSApplicationDirectory, NSUserDomainMask, YES);
 
-	if ([userApplicationsDirs count] > 0) {
-		NSString *userApplicationsDir = [userApplicationsDirs objectAtIndex:0];
+	if (useUserDirectory && [userApplicationsDirs count] > 0) {
+		NSString *userApplicationsDir = userApplicationsDirs[0];
 		BOOL isDirectory;
 
 		if ([fm fileExistsAtPath:userApplicationsDir isDirectory:&isDirectory] && isDirectory) {
 			// User Applications directory exists. Get the directory contents.
-			NSArray *contents = [fm contentsOfDirectoryAtPath:userApplicationsDir error:NULL];
+			NSArray *contents = [fm contentsOfDirectoryAtPath:userApplicationsDir error:nil];
 
 			// Check if there is at least one ".app" inside the directory.
 			for (NSString *contentsPath in contents) {
 				if ([[contentsPath pathExtension] isEqualToString:@"app"]) {
-					if (isUserDirectory) *isUserDirectory = YES;
+					useUserDirectory = true;
 					return [userApplicationsDir stringByResolvingSymlinksInPath];
 				}
 			}
@@ -242,7 +253,7 @@ static NSString *PreferredInstallLocation(BOOL *isUserDirectory) {
 	}
 
 	// No user Applications directory in use. Return the machine local Applications directory
-	if (isUserDirectory) *isUserDirectory = NO;
+	useUserDirectory = false;
 
 	return [[NSSearchPathForDirectoriesInDomains(NSApplicationDirectory, NSLocalDomainMask, YES) lastObject] stringByResolvingSymlinksInPath];
 }
@@ -316,7 +327,7 @@ static NSString *ContainingDiskImageDevice(NSString *path) {
 
 	NSString *device = [[NSFileManager defaultManager] stringWithFileSystemRepresentation:fs.f_mntfromname length:strlen(fs.f_mntfromname)];
 
-	NSTask *hdiutil = [[[NSTask alloc] init] autorelease];
+	NSTask *hdiutil = [[NSTask alloc] init];
 	[hdiutil setLaunchPath:@"/usr/bin/hdiutil"];
 	[hdiutil setArguments:[NSArray arrayWithObjects:@"info", @"-plist", nil]];
 	[hdiutil setStandardOutput:[NSPipe pipe]];

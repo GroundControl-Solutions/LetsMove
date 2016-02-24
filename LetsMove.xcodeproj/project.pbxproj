@@ -11,7 +11,7 @@
 		6317AB1E1068842E000355D9 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6317AB1D1068842E000355D9 /* Security.framework */; };
 		8D11072D0486CEB800E47090 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 29B97316FDCFA39411CA2CEA /* main.m */; settings = {ATTRIBUTES = (); }; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
-		A120E7F810630B160045BE3F /* PFMoveApplication.m in Sources */ = {isa = PBXBuildFile; fileRef = A120E7F710630B160045BE3F /* PFMoveApplication.m */; };
+		A120E7F810630B160045BE3F /* PFMoveApplication.mm in Sources */ = {isa = PBXBuildFile; fileRef = A120E7F710630B160045BE3F /* PFMoveApplication.mm */; };
 		A17CADEB192F7E14008A209F /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A17CADE5192F7E14008A209F /* InfoPlist.strings */; };
 		A17CADEC192F7E14008A209F /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = A17CADE7192F7E14008A209F /* MainMenu.xib */; };
 		A17CADED192F7E14008A209F /* MoveApplication.strings in Resources */ = {isa = PBXBuildFile; fileRef = A17CADE9192F7E14008A209F /* MoveApplication.strings */; };
@@ -30,7 +30,7 @@
 		8D1107310486CEB800E47090 /* LetsMove-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "LetsMove-Info.plist"; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* LetsMove.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LetsMove.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A120E7F610630B160045BE3F /* PFMoveApplication.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PFMoveApplication.h; sourceTree = "<group>"; };
-		A120E7F710630B160045BE3F /* PFMoveApplication.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = PFMoveApplication.m; sourceTree = "<group>"; };
+		A120E7F710630B160045BE3F /* PFMoveApplication.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = PFMoveApplication.mm; sourceTree = "<group>"; };
 		A1339024192F8183009ABCE2 /* cs */ = {isa = PBXFileReference; fileEncoding = 10; lastKnownFileType = text.plist.strings; name = cs; path = cs.lproj/MoveApplication.strings; sourceTree = "<group>"; };
 		A17CADE6192F7E14008A209F /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		A17CADE8192F7E14008A209F /* en */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = en; path = en.lproj/MainMenu.xib; sourceTree = "<group>"; };
@@ -77,7 +77,7 @@
 			isa = PBXGroup;
 			children = (
 				A120E7F610630B160045BE3F /* PFMoveApplication.h */,
-				A120E7F710630B160045BE3F /* PFMoveApplication.m */,
+				A120E7F710630B160045BE3F /* PFMoveApplication.mm */,
 				256AC3D80F4B6AC300CF3369 /* LetsMoveAppDelegate.h */,
 				256AC3D90F4B6AC300CF3369 /* LetsMoveAppDelegate.m */,
 			);
@@ -241,7 +241,7 @@
 			files = (
 				8D11072D0486CEB800E47090 /* main.m in Sources */,
 				256AC3DA0F4B6AC300CF3369 /* LetsMoveAppDelegate.m in Sources */,
-				A120E7F810630B160045BE3F /* PFMoveApplication.m in Sources */,
+				A120E7F810630B160045BE3F /* PFMoveApplication.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
