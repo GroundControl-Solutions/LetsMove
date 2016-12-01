@@ -62,6 +62,8 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 
 	// Path of the bundle
 	NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
+	
+	NSLog(@"%s: FYI we think our bundle path is %@", __FUNCTION__, bundlePath);
 
 	// Check if the bundle is embedded in another application
 	BOOL isNestedApplication = IsApplicationAtPathNested(bundlePath);
