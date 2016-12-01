@@ -89,10 +89,13 @@ NSURL * GetRealBundleURL(void) {
 		auto originalURL = mySecTranslocateCreateOriginalPathForURL((__bridge CFURLRef)bundleURL, NULL);
 		if (originalURL != NULL)
 		{
-			return CFBridgingRelease(originalURL);
+			NSURL * result = CFBridgingRelease(originalURL);
+			NSLog(@"%s: Security says bundle is Translocated from %@", __FUNCTION__, result);
+			return result;
 		}
 	}
 	
+	NSLog(@"%s: Translocation not in effect", __FUNCTION__);
 	return bundleURL;
 }
 
