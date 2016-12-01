@@ -55,15 +55,56 @@ static BOOL CopyBundle(NSString *srcPath, NSString *dstPath);
 static NSString *ShellQuotedString(NSString *string);
 static void Relaunch(NSString *destinationPath);
 
+/// Gets the real bundle path of the application, not the Translocated one if applicable
+NSURL * GetRealBundleURL(void) {
+	
+	NSURL * bundleURL = [NSBundle mainBundle].bundleURL;
+	NSLog(@"%s: Foundation says bundle URL is %@", __FUNCTION__, bundleURL);
+	
+	// #define NSAppKitVersionNumber10_11 1404
+	if (floor(NSAppKitVersionNumber) <= 1404) {
+		return bundleURL;
+	}
+	
+	void * handle = dlopen("/System/Library/Frameworks/Security.framework/Security", RTLD_LAZY);
+	if (handle == NULL) {
+		return bundleURL;
+	}
+	
+	bool isTranslocated = false;
+	
+	// Get undocumented function symbols
+	auto mySecTranslocateIsTranslocatedURL = (Boolean(*)(CFURLRef path, bool *isTranslocated, CFErrorRef * __nullable error))dlsym(handle, "SecTranslocateIsTranslocatedURL");
+	auto mySecTranslocateCreateOriginalPathForURL = (CFURLRef __nullable(*)(CFURLRef translocatedPath, CFErrorRef * __nullable error))dlsym(handle, "SecTranslocateCreateOriginalPathForURL");
+	
+	dlclose(handle);
+	
+	if (mySecTranslocateIsTranslocatedURL == nullptr || mySecTranslocateCreateOriginalPathForURL == nullptr) {
+		NSLog(@"%s: We're running on macOS >= 10.12 but the SecTranslocate functions are not available", __FUNCTION__);
+		return bundleURL;
+	}
+	
+	if (mySecTranslocateIsTranslocatedURL((__bridge CFURLRef)bundleURL, &isTranslocated, NULL) && isTranslocated)
+	{
+		auto originalURL = mySecTranslocateCreateOriginalPathForURL((__bridge CFURLRef)bundleURL, NULL);
+		if (originalURL != NULL)
+		{
+			return CFBridgingRelease(originalURL);
+		}
+	}
+	
+	return bundleURL;
+}
+
 // Main worker function
 void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 	// Skip if user suppressed the alert before
 	if ([[NSUserDefaults standardUserDefaults] boolForKey:AlertSuppressKey]) return;
 
 	// Path of the bundle
-	NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
+	NSString *bundlePath = GetRealBundleURL().path;
 	
-	NSLog(@"%s: FYI we think our bundle path is %@", __FUNCTION__, bundlePath);
+	NSLog(@"%s: We think our real bundle path is %@", __FUNCTION__, bundlePath);
 
 	// Check if the bundle is embedded in another application
 	BOOL isNestedApplication = IsApplicationAtPathNested(bundlePath);
