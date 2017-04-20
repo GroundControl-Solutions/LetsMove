@@ -15,6 +15,32 @@
 #import <sys/param.h>
 #import <sys/mount.h>
 
+#import <GCLog/GCLog.h>
+
+GGLogDomainIdentifier log_identifier()
+{
+	static auto domain = CFSTR("LetsMove");
+	static auto identifier = GGLogGetIdentifierForDomain(domain);
+	
+	return identifier;
+}
+
+static CF::String make_log_string(NSString* format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	auto ns_str = [NSString.alloc initWithFormat:format locale:nil arguments:args];
+	va_end(args);
+	
+	return CF::BridgingRelease((__bridge_retained CFStringRef)ns_str);
+}
+
+template<class... T>
+static void Log(GGLogLevel level , NSString* format, T&&... t)
+{
+	GG::LogDomain(log_identifier(), level, CFSTR("%@"), static_cast<CFStringRef>(make_log_string(format, std::forward<T>(t)...)));
+}
+
 // Strings
 // These are macros to be able to use custom i18n tools
 #define _I10NS(nsstr) NSLocalizedStringFromTable(nsstr, @"MoveApplication", nil)
@@ -59,7 +85,7 @@ static void Relaunch(NSString *destinationPath);
 NSURL * GetRealBundleURL(void) {
 	
 	NSURL * bundleURL = [NSBundle mainBundle].bundleURL;
-	NSLog(@"%s: Foundation says bundle URL is %@", __FUNCTION__, bundleURL);
+	Log(kGGLogInfo, @"%s: Foundation says bundle URL is %@", __FUNCTION__, bundleURL);
 	
 	// #define NSAppKitVersionNumber10_11 1404
 	if (floor(NSAppKitVersionNumber) <= 1404) {
@@ -80,7 +106,7 @@ NSURL * GetRealBundleURL(void) {
 	dlclose(handle);
 	
 	if (mySecTranslocateIsTranslocatedURL == nullptr || mySecTranslocateCreateOriginalPathForURL == nullptr) {
-		NSLog(@"%s: We're running on macOS >= 10.12 but the SecTranslocate functions are not available", __FUNCTION__);
+		Log(kGGLogWarning, @"%s: We're running on macOS >= 10.12 but the SecTranslocate functions are not available", __FUNCTION__);
 		return bundleURL;
 	}
 	
@@ -90,12 +116,12 @@ NSURL * GetRealBundleURL(void) {
 		if (originalURL != NULL)
 		{
 			NSURL * result = CFBridgingRelease(originalURL);
-			NSLog(@"%s: Security says bundle is Translocated from %@", __FUNCTION__, result);
+			Log(kGGLogNotice, @"%s: Security says bundle is Translocated from %@", __FUNCTION__, result);
 			return result;
 		}
 	}
 	
-	NSLog(@"%s: Translocation not in effect", __FUNCTION__);
+	Log(kGGLogNotice, @"%s: Translocation not in effect", __FUNCTION__);
 	return bundleURL;
 }
 
@@ -107,7 +133,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 	// Path of the bundle
 	NSString *bundlePath = GetRealBundleURL().path;
 	
-	NSLog(@"%s: We think our real bundle path is %@", __FUNCTION__, bundlePath);
+	Log(kGGLogInfo, @"%s: We think our real bundle path is %@", __FUNCTION__, bundlePath);
 
 	// Check if the bundle is embedded in another application
 	BOOL isNestedApplication = IsApplicationAtPathNested(bundlePath);
@@ -191,7 +217,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 	}
 
 	if ([alert runModal] == NSAlertFirstButtonReturn) {
-		NSLog(@"INFO -- Moving myself to the Applications folder");
+		Log(kGGLogNotice, @"Moving myself to the Applications folder");
 
 		// Move
 		if (needAuthorization) {
@@ -199,11 +225,11 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 
 			if (!AuthorizedInstall(bundlePath, destinationPath, &authorizationCanceled)) {
 				if (authorizationCanceled) {
-					NSLog(@"INFO -- Not moving because user canceled authorization");
+					Log(kGGLogNotice, @"Not moving because user canceled authorization");
 					return;
 				}
 				else {
-					NSLog(@"ERROR -- Could not copy myself to /Applications with authorization");
+					Log(kGGLogError, @"Could not copy myself to /Applications with authorization");
 					goto fail;
 				}
 			}
@@ -214,7 +240,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 				// But first, make sure that it's not running
 				if (IsApplicationAtPathRunning(destinationPath)) {
 					// Give the running app focus and terminate myself
-					NSLog(@"INFO -- Switching to an already running version");
+					Log(kGGLogNotice, @"Switching to an already running version");
 					[[NSTask launchedTaskWithLaunchPath:@"/usr/bin/open" arguments:@[destinationPath]] waitUntilExit];
 					exit(0);
 				}
@@ -225,7 +251,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 			}
 
  			if (!CopyBundle(bundlePath, destinationPath)) {
-				NSLog(@"ERROR -- Could not copy myself to %@", destinationPath);
+				Log(kGGLogError, @"Could not copy myself to %@", destinationPath);
 				goto fail;
 			}
 		}
@@ -235,7 +261,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 		//       Calling rm or file manager's delete method doesn't work either. It's unlikely to happen
 		//       but it'd be great if someone could fix this.
 		if (!isNestedApplication && diskImageDevice == nil && !DeleteOrTrash(bundlePath)) {
-			NSLog(@"WARNING -- Could not delete application after moving it to Applications folder");
+			Log(kGGLogWarning, @"Could not delete application after moving it to Applications folder");
 		}
 
 		// Relaunch.
@@ -452,13 +478,13 @@ static BOOL Trash(NSString *path) {
 		NSDictionary *errorDict = nil;
 		NSAppleEventDescriptor *scriptResult = [appleScript executeAndReturnError:&errorDict];
 		if (scriptResult == nil) {
-			NSLog(@"Trash AppleScript error: %@", errorDict);
+			Log(kGGLogNotice, @"Trash AppleScript error: %@", errorDict);
 		}
 		result = (scriptResult != nil);
 	}
 
 	if (!result) {
-		NSLog(@"ERROR -- Could not trash '%@'", path);
+		Log(kGGLogError, @"Could not trash '%@'", path);
 	}
 
 	return result;
@@ -473,7 +499,7 @@ static BOOL DeleteOrTrash(NSString *path) {
 	else {
 		// Don't log warning if on Sierra and running inside App Translocation path
 		if (![path containsString:@"/AppTranslocation/"])
-			NSLog(@"WARNING -- Could not delete '%@': %@", path, [error localizedDescription]);
+			Log(kGGLogWarning, @"Could not delete '%@': %@", path, [error localizedDescription]);
 		
 		return Trash(path);
 	}
@@ -561,7 +587,7 @@ static BOOL CopyBundle(NSString *srcPath, NSString *dstPath) {
 		return YES;
 	}
 	else {
-		NSLog(@"ERROR -- Could not copy '%@' to '%@' (%@)", srcPath, dstPath, error);
+		Log(kGGLogError, @"Could not copy '%@' to '%@' (%@)", srcPath, dstPath, error);
 		return NO;
 	}
 }
