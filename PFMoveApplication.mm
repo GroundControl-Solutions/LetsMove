@@ -17,7 +17,7 @@
 
 #import <GCLog/GCLog.h>
 
-GGLogDomainIdentifier log_identifier()
+static GGLogDomainIdentifier log_identifier()
 {
 	static auto domain = CFSTR("LetsMove");
 	static auto identifier = GGLogGetIdentifierForDomain(domain);
@@ -82,7 +82,7 @@ static NSString *ShellQuotedString(NSString *string);
 static void Relaunch(NSString *destinationPath);
 
 /// Gets the real bundle path of the application, not the Translocated one if applicable
-NSURL * GetRealBundleURL(void) {
+static NSURL * GetRealBundleURL(void) {
 	
 	NSURL * bundleURL = [NSBundle mainBundle].bundleURL;
 	Log(kGGLogInfo, @"%s: Foundation says bundle URL is %@", __FUNCTION__, bundleURL);
