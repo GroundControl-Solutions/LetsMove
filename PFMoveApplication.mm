@@ -17,28 +17,45 @@
 
 #import <GCLog/GCLog.h>
 
-static GGLogDomainIdentifier log_identifier()
+using namespace std::literals;
+using namespace fmt::literals;
+using GC::Logging::log_level;
+
+[[nodiscard]] static GC::Logging::logger get_logger()
 {
-	static auto domain = CFSTR("LetsMove");
-	static auto identifier = GGLogGetIdentifierForDomain(domain);
-	
-	return identifier;
+	static const auto logger = GC::Logging::get_logger("UI"s);
+	return logger;
 }
 
-static CF::String make_log_string(NSString* format, ...)
+static inline void Log(log_level lvl, std::string_view str) { GC::Logging::log_str(get_logger(), lvl, str); }
+
+template<class Func, class... Args>
+static inline void Log(log_level lvl, Func&& func, Args&&... args)
 {
+	GC::Logging::log_fun(get_logger(), lvl, std::forward<Func>(func), std::forward<Args>(args)...);
+}
+
+template<class... Args>
+static inline void LogError(Args&&... args)
+{
+	GC::Logging::LogError(get_logger(), std::forward<Args>(args)...);
+}
+
+template<class... Args>
+static inline void LogCF(Args&&... args)
+{
+	GC::Logging::log_cffmt(get_logger(), std::forward<Args>(args)...);
+}
+
+static inline void LogNS(log_level lvl, NSString* format, ...)
+{
+	using namespace fmt::literals;
+
 	va_list args;
 	va_start(args, format);
-	auto ns_str = [NSString.alloc initWithFormat:format locale:nil arguments:args];
+	const auto ns_str = [NSString.alloc initWithFormat:format locale:nil arguments:args];
 	va_end(args);
-	
-	return CF::BridgingRelease((__bridge_retained CFStringRef)ns_str);
-}
-
-template<class... T>
-static void Log(GGLogLevel level , NSString* format, T&&... t)
-{
-	GG::LogDomain(log_identifier(), level, CFSTR("%@"), static_cast<CFStringRef>(make_log_string(format, std::forward<T>(t)...)));
+	Log(lvl, "{}"_format, ns_str.UTF8String);
 }
 
 // Strings
@@ -85,7 +102,7 @@ static void Relaunch(NSString *destinationPath);
 static NSURL * GetRealBundleURL(void) {
 	
 	NSURL * bundleURL = [NSBundle mainBundle].bundleURL;
-	Log(kGGLogInfo, @"%s: Foundation says bundle URL is %@", __FUNCTION__, bundleURL);
+	LogNS(log_level::info, @"%s: Foundation says bundle URL is %@", __FUNCTION__, bundleURL);
 	
 	// #define NSAppKitVersionNumber10_11 1404
 	if (floor(NSAppKitVersionNumber) <= 1404) {
@@ -106,7 +123,7 @@ static NSURL * GetRealBundleURL(void) {
 	dlclose(handle);
 	
 	if (mySecTranslocateIsTranslocatedURL == nullptr || mySecTranslocateCreateOriginalPathForURL == nullptr) {
-		Log(kGGLogWarning, @"%s: We're running on macOS >= 10.12 but the SecTranslocate functions are not available", __FUNCTION__);
+		Log(log_level::warning, "{}: We're running on macOS >= 10.12 but the SecTranslocate functions are not available"_format, GC_PRETTY_FUNCTION);
 		return bundleURL;
 	}
 	
@@ -116,12 +133,12 @@ static NSURL * GetRealBundleURL(void) {
 		if (originalURL != NULL)
 		{
 			NSURL * result = CFBridgingRelease(originalURL);
-			Log(kGGLogNotice, @"%s: Security says bundle is Translocated from %@", __FUNCTION__, result);
+			LogNS(log_level::notice, @"%s: Security says bundle is Translocated from %@", GC_PRETTY_FUNCTION, result);
 			return result;
 		}
 	}
 	
-	Log(kGGLogNotice, @"%s: Translocation not in effect", __FUNCTION__);
+	Log(log_level::notice, "{}: Translocation not in effect"_format, GC_PRETTY_FUNCTION);
 	return bundleURL;
 }
 
@@ -133,7 +150,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 	// Path of the bundle
 	NSString *bundlePath = GetRealBundleURL().path;
 	
-	Log(kGGLogInfo, @"%s: We think our real bundle path is %@", __FUNCTION__, bundlePath);
+	LogNS(log_level::info, @"%s: We think our real bundle path is %@", GC_PRETTY_FUNCTION, bundlePath);
 
 	// Check if the bundle is embedded in another application
 	BOOL isNestedApplication = IsApplicationAtPathNested(bundlePath);
@@ -217,7 +234,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 	}
 
 	if ([alert runModal] == NSAlertFirstButtonReturn) {
-		Log(kGGLogNotice, @"Moving myself to the Applications folder");
+		Log(log_level::notice, "Moving myself to the Applications folder"sv);
 
 		// Move
 		if (needAuthorization) {
@@ -225,11 +242,11 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 
 			if (!AuthorizedInstall(bundlePath, destinationPath, &authorizationCanceled)) {
 				if (authorizationCanceled) {
-					Log(kGGLogNotice, @"Not moving because user canceled authorization");
+					Log(log_level::notice, "Not moving because user canceled authorization"sv);
 					return;
 				}
 				else {
-					Log(kGGLogError, @"Could not copy myself to /Applications with authorization");
+					Log(log_level::error, "Could not copy myself to /Applications with authorization"sv);
 					goto fail;
 				}
 			}
@@ -240,7 +257,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 				// But first, make sure that it's not running
 				if (IsApplicationAtPathRunning(destinationPath)) {
 					// Give the running app focus and terminate myself
-					Log(kGGLogNotice, @"Switching to an already running version");
+					Log(log_level::notice, "Switching to an already running version"sv);
 					[[NSTask launchedTaskWithLaunchPath:@"/usr/bin/open" arguments:@[destinationPath]] waitUntilExit];
 					exit(0);
 				}
@@ -251,7 +268,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 			}
 
  			if (!CopyBundle(bundlePath, destinationPath)) {
-				Log(kGGLogError, @"Could not copy myself to %@", destinationPath);
+				LogNS(log_level::error, @"Could not copy myself to %@", destinationPath);
 				goto fail;
 			}
 		}
@@ -261,7 +278,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 		//       Calling rm or file manager's delete method doesn't work either. It's unlikely to happen
 		//       but it'd be great if someone could fix this.
 		if (!isNestedApplication && diskImageDevice == nil && !DeleteOrTrash(bundlePath)) {
-			Log(kGGLogWarning, @"Could not delete application after moving it to Applications folder");
+			Log(log_level::warning, "Could not delete application after moving it to Applications folder"sv);
 		}
 
 		// Relaunch.
@@ -478,13 +495,13 @@ static BOOL Trash(NSString *path) {
 		NSDictionary *errorDict = nil;
 		NSAppleEventDescriptor *scriptResult = [appleScript executeAndReturnError:&errorDict];
 		if (scriptResult == nil) {
-			Log(kGGLogNotice, @"Trash AppleScript error: %@", errorDict);
+			LogNS(log_level::notice, @"Trash AppleScript error: %@", errorDict);
 		}
 		result = (scriptResult != nil);
 	}
 
 	if (!result) {
-		Log(kGGLogError, @"Could not trash '%@'", path);
+		LogNS(log_level::error, @"Could not trash '%@'", path);
 	}
 
 	return result;
@@ -499,7 +516,7 @@ static BOOL DeleteOrTrash(NSString *path) {
 	else {
 		// Don't log warning if on Sierra and running inside App Translocation path
 		if (![path containsString:@"/AppTranslocation/"])
-			Log(kGGLogWarning, @"Could not delete '%@': %@", path, [error localizedDescription]);
+			LogNS(log_level::warning, @"Could not delete '%@': %@", path, [error localizedDescription]);
 		
 		return Trash(path);
 	}
@@ -587,7 +604,7 @@ static BOOL CopyBundle(NSString *srcPath, NSString *dstPath) {
 		return YES;
 	}
 	else {
-		Log(kGGLogError, @"Could not copy '%@' to '%@' (%@)", srcPath, dstPath, error);
+		LogNS(log_level::error, @"Could not copy '%@' to '%@' (%@)", srcPath, dstPath, error);
 		return NO;
 	}
 }
