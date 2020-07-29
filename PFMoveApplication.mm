@@ -41,12 +41,6 @@ static inline void LogError(Args&&... args)
 	GC::Logging::LogError(get_logger(), std::forward<Args>(args)...);
 }
 
-template<class... Args>
-static inline void LogCF(Args&&... args)
-{
-	GC::Logging::log_cffmt(get_logger(), std::forward<Args>(args)...);
-}
-
 static inline void LogNS(log_level lvl, NSString* format, ...)
 {
 	using namespace fmt::literals;
