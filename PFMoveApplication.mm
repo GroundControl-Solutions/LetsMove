@@ -27,10 +27,10 @@ using GC::Logging::log_level;
 	return logger;
 }
 
-static inline void Log(log_level lvl, std::string_view str) { GC::Logging::log_str(get_logger(), lvl, str); }
+static inline void log_str(log_level lvl, std::string_view str) { GC::Logging::log_str(get_logger(), lvl, str); }
 
 template<class Func, class... Args>
-static inline void Log(log_level lvl, Func&& func, Args&&... args)
+static inline void log_fun(log_level lvl, Func&& func, Args&&... args)
 {
 	GC::Logging::log_fun(get_logger(), lvl, std::forward<Func>(func), std::forward<Args>(args)...);
 }
@@ -49,7 +49,7 @@ static inline void LogNS(log_level lvl, NSString* format, ...)
 	va_start(args, format);
 	const auto ns_str = [NSString.alloc initWithFormat:format locale:nil arguments:args];
 	va_end(args);
-	Log(lvl, "{}"_format, ns_str.UTF8String);
+	log_fun(lvl, "{}"_format, ns_str.UTF8String);
 }
 
 // Strings
@@ -117,7 +117,7 @@ static NSURL * GetRealBundleURL(void) {
 	dlclose(handle);
 	
 	if (mySecTranslocateIsTranslocatedURL == nullptr || mySecTranslocateCreateOriginalPathForURL == nullptr) {
-		Log(log_level::warning, "{}: We're running on macOS >= 10.12 but the SecTranslocate functions are not available"_format, GC_PRETTY_FUNCTION);
+		log_fun(log_level::warning, "{}: We're running on macOS >= 10.12 but the SecTranslocate functions are not available"_format, GC_PRETTY_FUNCTION);
 		return bundleURL;
 	}
 	
@@ -132,7 +132,7 @@ static NSURL * GetRealBundleURL(void) {
 		}
 	}
 	
-	Log(log_level::notice, "{}: Translocation not in effect"_format, GC_PRETTY_FUNCTION);
+	log_fun(log_level::notice, "{}: Translocation not in effect"_format, GC_PRETTY_FUNCTION);
 	return bundleURL;
 }
 
@@ -228,7 +228,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 	}
 
 	if ([alert runModal] == NSAlertFirstButtonReturn) {
-		Log(log_level::notice, "Moving myself to the Applications folder"sv);
+		log_str(log_level::notice, "Moving myself to the Applications folder"sv);
 
 		// Move
 		if (needAuthorization) {
@@ -236,11 +236,11 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 
 			if (!AuthorizedInstall(bundlePath, destinationPath, &authorizationCanceled)) {
 				if (authorizationCanceled) {
-					Log(log_level::notice, "Not moving because user canceled authorization"sv);
+					log_str(log_level::notice, "Not moving because user canceled authorization"sv);
 					return;
 				}
 				else {
-					Log(log_level::error, "Could not copy myself to /Applications with authorization"sv);
+					log_str(log_level::error, "Could not copy myself to /Applications with authorization"sv);
 					goto fail;
 				}
 			}
@@ -251,7 +251,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 				// But first, make sure that it's not running
 				if (IsApplicationAtPathRunning(destinationPath)) {
 					// Give the running app focus and terminate myself
-					Log(log_level::notice, "Switching to an already running version"sv);
+					log_str(log_level::notice, "Switching to an already running version"sv);
 					[[NSTask launchedTaskWithLaunchPath:@"/usr/bin/open" arguments:@[destinationPath]] waitUntilExit];
 					exit(0);
 				}
@@ -272,7 +272,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 		//       Calling rm or file manager's delete method doesn't work either. It's unlikely to happen
 		//       but it'd be great if someone could fix this.
 		if (!isNestedApplication && diskImageDevice == nil && !DeleteOrTrash(bundlePath)) {
-			Log(log_level::warning, "Could not delete application after moving it to Applications folder"sv);
+			log_str(log_level::warning, "Could not delete application after moving it to Applications folder"sv);
 		}
 
 		// Relaunch.
