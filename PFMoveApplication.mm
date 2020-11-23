@@ -217,7 +217,7 @@ void PFMoveToApplicationsFolderIfNecessary(void(^willRelaunch)(void)) {
 
 		if (PFUseSmallAlertSuppressCheckbox) {
 			NSCell *cell = [[alert suppressionButton] cell];
-			[cell setControlSize:NSSmallControlSize];
+			[cell setControlSize:NSControlSizeSmall];
 			[cell setFont:[NSFont systemFontOfSize:[NSFont smallSystemFontSize]]];
 		}
 	}
