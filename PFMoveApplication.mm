@@ -15,7 +15,7 @@
 #import <sys/param.h>
 #import <sys/mount.h>
 
-#import <GCLog/GCLog.h>
+#import <GCLog/GCLog+CFPP.h>
 
 using namespace std::literals;
 using namespace fmt::literals;
